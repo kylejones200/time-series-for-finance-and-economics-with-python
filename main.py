@@ -7,6 +7,12 @@ Volatility forecasting using ARCH and GARCH models for financial time series.
 import sys
 from pathlib import Path
 
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 # Add src to path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -88,30 +94,30 @@ def main():
         value_column=config["data"].get("value_col", "value")
     )
     
-    print(f"Loaded {len(series)} data points")
+    logger.info(f"Loaded {len(series)} data points")
     
     # Calculate returns if configured (typical for volatility modeling)
     if config.get("data", {}).get("use_returns", True):
         returns = series.pct_change().dropna()
         data = returns
-        print(f"Using returns: {len(returns)} data points")
+        logger.info(f"Using returns: {len(returns)} data points")
     else:
         data = series
     
     # Split train/test using consolidated evaluator
     evaluator = Evaluator(test_size=config.get("evaluation", {}).get("test_size", 0.2))
     train, test = evaluator.split(data)
-    print(f"\nTrain: {len(train)} points, Test: {len(test)} points")
+    logger.info(f"\nTrain: {len(train)} points, Test: {len(test)} points")
     
     # Create and fit volatility model
     model_type = config["model"]["type"]
-    print(f"\nFitting {model_type} volatility model...")
+    logger.info(f"\nFitting {model_type} volatility model...")
     model = create_volatility_model(train, config)
     
     fitted_model, forecast_variance, forecast_volatility = fit_and_forecast(model, config)
     
-    print(f"\n{model_type} Model Summary:")
-    print(fitted_model.summary())
+    logger.info(f"\n{model_type} Model Summary:")
+    logger.info(fitted_model.summary())
     
     # Create forecast index
     forecast_horizon = config["model"]["forecast_horizon"]
@@ -132,12 +138,12 @@ def main():
         if valid_idx.sum() > 0:
             mae = mean_absolute_error(aligned_test[valid_idx], forecast_series[valid_idx])
             rmse = np.sqrt(mean_squared_error(aligned_test[valid_idx], forecast_series[valid_idx]))
-            print(f"\nEvaluation Metrics:")
-            print(f"  MAE: {mae:.4f}")
-            print(f"  RMSE: {rmse:.4f}")
+            logger.info(f"\nEvaluation Metrics:")
+            logger.info(f"  MAE: {mae:.4f}")
+            logger.info(f"  RMSE: {rmse:.4f}")
     
     # Create visualization
-    print("\nCreating visualization...")
+    logger.info("\nCreating visualization...")
     fig, axes = plt.subplots(2, 1, figsize=(15, 10), sharex=True)
     
     # Plot returns/values
@@ -188,9 +194,9 @@ def main():
     plt.tight_layout()
     output_dir = ensure_output_dir(get_output_dir(config, script_dir))
     save_plot(fig, output_dir / f"{model_type.lower()}_volatility.png", dpi=300)
-    print(f"Plot saved to: {output_dir / f'{model_type.lower()}_volatility.png'}")
+    logger.info(f"Plot saved to: {output_dir / f'{model_type.lower()}_volatility.png'}")
     
-    print(f"\n {model_type} volatility analysis complete")
+    logger.info(f"\n {model_type} volatility analysis complete")
     
     if config.get("plotting", {}).get("show_plot", True):
         plt.show()
