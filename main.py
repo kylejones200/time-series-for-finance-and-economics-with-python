@@ -80,7 +80,7 @@ def fit_and_forecast(model, config: dict):
     return fitted_model, forecast_variance, forecast_volatility
 
 
-def main():
+def main(plot: bool = False):
     """Main execution function."""
     script_dir = Path(__file__).parent
     
@@ -144,64 +144,65 @@ def main():
     
     # Create visualization
     logger.info("\nCreating visualization...")
-    fig, axes = plt.subplots(2, 1, figsize=(15, 10), sharex=True)
+    if plot:
+        fig, axes = plt.subplots(2, 1, figsize=(15, 10), sharex=True)
     
     # Plot returns/values
-    axes[0].plot(
-        train.index[-100:] if len(train) > 100 else train.index,
-        train.values[-100:] if len(train) > 100 else train.values,
-        "k-",
-        linewidth=config.get("plotting", {}).get("linewidth", 1.5),
-        alpha=config.get("plotting", {}).get("alpha", 0.8),
-        label="Historical",
-    )
-    if len(test) > 0:
         axes[0].plot(
-            test.index[:forecast_horizon] if len(test) >= forecast_horizon else test.index,
-            test.values[:forecast_horizon] if len(test) >= forecast_horizon else test.values,
-            "g-",
+            train.index[-100:] if len(train) > 100 else train.index,
+            train.values[-100:] if len(train) > 100 else train.values,
+            "k-",
             linewidth=config.get("plotting", {}).get("linewidth", 1.5),
             alpha=config.get("plotting", {}).get("alpha", 0.8),
-            label="Actual (Test)",
+            label="Historical",
         )
-    axes[0].set_title(f"{model_type} Model - Returns/Values")
-    axes[0].set_ylabel("Return" if config.get("data", {}).get("use_returns", True) else "Value")
-    axes[0].legend(loc="best")
-    axes[0].grid(True, alpha=0.3)
+        if len(test) > 0:
+            axes[0].plot(
+                test.index[:forecast_horizon] if len(test) >= forecast_horizon else test.index,
+                test.values[:forecast_horizon] if len(test) >= forecast_horizon else test.values,
+                "g-",
+                linewidth=config.get("plotting", {}).get("linewidth", 1.5),
+                alpha=config.get("plotting", {}).get("alpha", 0.8),
+                label="Actual (Test)",
+            )
+        axes[0].set_title(f"{model_type} Model - Returns/Values")
+        axes[0].set_ylabel("Return" if config.get("data", {}).get("use_returns", True) else "Value")
+        axes[0].legend(loc="best")
+        axes[0].grid(True, alpha=0.3)
     
     # Plot volatility forecast
-    axes[1].plot(
-        forecast_index,
-        forecast_volatility,
-        "r-",
-        linewidth=config.get("plotting", {}).get("linewidth", 1.5),
-        label=f"{model_type} Volatility Forecast",
-    )
-    axes[1].fill_between(
-        forecast_index,
-        forecast_volatility * 0.8,  # Lower bound approximation
-        forecast_volatility * 1.2,  # Upper bound approximation
-        alpha=0.2,
-        color="r",
-        label="Uncertainty",
-    )
-    axes[1].set_title(f"{model_type} Volatility Forecast")
-    axes[1].set_ylabel("Volatility")
-    axes[1].set_xlabel("Date")
-    axes[1].legend(loc="best")
-    axes[1].grid(True, alpha=0.3)
+        axes[1].plot(
+            forecast_index,
+            forecast_volatility,
+            "r-",
+            linewidth=config.get("plotting", {}).get("linewidth", 1.5),
+            label=f"{model_type} Volatility Forecast",
+        )
+        axes[1].fill_between(
+            forecast_index,
+            forecast_volatility * 0.8,  # Lower bound approximation
+            forecast_volatility * 1.2,  # Upper bound approximation
+            alpha=0.2,
+            color="r",
+            label="Uncertainty",
+        )
+        axes[1].set_title(f"{model_type} Volatility Forecast")
+        axes[1].set_ylabel("Volatility")
+        axes[1].set_xlabel("Date")
+        axes[1].legend(loc="best")
+        axes[1].grid(True, alpha=0.3)
     
-    plt.tight_layout()
-    output_dir = ensure_output_dir(get_output_dir(config, script_dir))
-    save_plot(fig, output_dir / f"{model_type.lower()}_volatility.png", dpi=300)
-    logger.info(f"Plot saved to: {output_dir / f'{model_type.lower()}_volatility.png'}")
+        plt.tight_layout()
+        output_dir = ensure_output_dir(get_output_dir(config, script_dir))
+        save_plot(fig, output_dir / f"{model_type.lower()}_volatility.png", dpi=300)
+        logger.info(f"Plot saved to: {output_dir / f'{model_type.lower()}_volatility.png'}")
     
-    logger.info(f"\n {model_type} volatility analysis complete")
+        logger.info(f"\n {model_type} volatility analysis complete")
     
-    if config.get("plotting", {}).get("show_plot", True):
-        plt.show()
-    else:
-        plt.close(fig)
+        if config.get("plotting", {}).get("show_plot", True):
+            plt.show()
+        else:
+            plt.close(fig)
 
 
 if __name__ == "__main__":
