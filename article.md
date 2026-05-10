@@ -42,12 +42,7 @@ To predict unemployment, we use the Prophet model from Facebook, which creates a
 
 Prophet requires specific column names: `ds` for date and `y` for the target value:
 
-    df.reset_index(inplace=True)
-    df.columns = ["ds", "y"]
-    df.dropna(inplace=True)
-    model = Prophet()
-    model.fit(df)
-    future = model.make_future_dataframe(periods=12)
+df.reset_index(inplace=True) df.columns = ["ds", "y"] df.dropna(inplace=True) model = Prophet() model.fit(df) future = model.make_future_dataframe(periods=12)
 
 ![image](img/9_unemployment_plotly.png)
 
@@ -57,55 +52,13 @@ This creates a forecast for the next 12 months. In the graph, the unemployment r
 
 Plotly is a declarative framework for building interactive graphs. After predicting with Prophet, we visualize the results using Plotly:
 
-    forecast = model.predict(future)
-    forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()
+forecast = model.predict(future) forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()
 
-    import plotly.graph_objs as go
+import plotly.graph_objs as go
 
-    def timeseries(df, x, yhat, lower, upper, actual, save = False):
-        fig = go.Figure([
-            go.Scatter(
-                name='Measurement',
-                x=df[x],
-                y=df['yhat'],
-                mode='lines',
-                line=dict(color='rgb(31, 119, 180)'),
-                showlegend=False
-            ),
-            go.Scatter(
-                name='Upper Bound',
-                x=df[x],
-                y=df[upper],
-                mode='lines',
-                marker=dict(color="#444"),
-                line=dict(width=0),
-                showlegend=False
-            ),
-            go.Scatter(
-                name='Lower Bound',
-                x=df[x],
-                y=df[lower],
-                marker=dict(color="#444"),
-                line=dict(width=0),
-                mode='lines',
-                fillcolor='rgba(68, 68, 68, 0.3)',
-                fill='tonexty',
-                showlegend=False
-            )
-        ])
-        fig.update_layout(
-            yaxis_title='Unemployment Rate',
-            title='Unemployment rate estimate using Prophet Forecast',
-            hovermode="x"
-        )
-        fig.add_trace(go.Scatter(x=actual['ds'], y=actual["y"],
-                        mode='lines+markers',
-                        name='Actual values',
-                        showlegend=False))
-        fig.show()
+def timeseries(df, x, yhat, lower, upper, actual, save = False): fig = go.Figure([ go.Scatter( name='Measurement', x=df[x], y=df['yhat'], mode='lines', line=dict(color='rgb(31, 119, 180)'), showlegend=False ), go.Scatter( name='Upper Bound', x=df[x], y=df[upper], mode='lines', marker=dict(color="#444"), line=dict(width=0), showlegend=False ), go.Scatter( name='Lower Bound', x=df[x], y=df[lower], marker=dict(color="#444"), line=dict(width=0), mode='lines', fillcolor='rgba(68, 68, 68, 0.3)', fill='tonexty', showlegend=False ) ]) fig.update_layout( yaxis_title='Unemployment Rate', title='Unemployment rate estimate using Prophet Forecast', hovermode="x" ) fig.add_trace(go.Scatter(x=actual['ds'], y=actual["y"], mode='lines+markers', name='Actual values', showlegend=False)) fig.show()
 
-        if save:
-            fig.write_html("unemployment_rate.html")
+if save: fig.write_html("unemployment_rate.html")
 
 This creates an interactive graph allowing users to hover over values.
 
@@ -119,116 +72,49 @@ Economic data presents unique challenges for time series analysis. Financial mar
 
 Unit root testing determines whether a time series is stationary which is a fundamental property where statistical characteristics remain constant over time. Cointegration analysis examines long-term relationships between non-stationary series. These concepts are crucial because many economic variables are non-stationary but may move together over time, forming stable economic relationships. The implementation uses statistical tests like the Augmented Dickey-Fuller test for stationarity and Johansen test for cointegration.
 
-    import statsmodels.api as sm
-    from statsmodels.tsa.stattools import adfuller, coint
-    from statsmodels.tsa.vector_ar.vecm import coint_johansen
+import statsmodels.api as sm from statsmodels.tsa.stattools import adfuller, coint from statsmodels.tsa.vector_ar.vecm import coint_johansen
 
-    def analyze_stationarity(series, name="Series"):
-        """Comprehensive stationarity analysis using ADF test"""
-        adf_result = adfuller(series, autolag='AIC')
-        print(f"Stationarity Analysis for {name}")
-        print("===================================")
-        print(f'ADF Statistic: {adf_result[0]:.4f}')
-        print(f'p-value: {adf_result[1]:.4f}')
-        print('Critical values:')
-        for key, value in adf_result[4].items():
-            print(f'\t{key}: {value:.4f}')
-        return adf_result[1] < 0.05
+def analyze_stationarity(series, name="Series"): """Comprehensive stationarity analysis using ADF test""" adf_result = adfuller(series, autolag='AIC') print(f"Stationarity Analysis for {name}") print("===================================") print(f'ADF Statistic: {adf_result[0]:.4f}') print(f'p-value: {adf_result[1]:.4f}') print('Critical values:') for key, value in adf_result[4].items(): print(f'\t{key}: {value:.4f}') return adf_result[1] < 0.05
 
 ## ARIMA Models with Economic Data
 
 Autoregressive Integrated Moving Average (ARIMA) models for economic data extend traditional time series analysis to handle the specific characteristics of economic variables. These models combine autoregressive terms (past values), integration (differencing for stationarity), and moving average terms (past errors) to capture complex patterns in economic data. The implementation allows for both regular and seasonal patterns, making it particularly suitable for economic indicators that show periodic behavior.
 
-    class EconometricARIMA:
-        def __init__(self, data, order=(1,1,1), seasonal_order=(0,0,0,0)):
-            self.data = data
-            self.order = order
-            self.seasonal_order = seasonal_order
-            self.model = None
-            self.results = None
+class EconometricARIMA: def __init__(self, data, order=(1,1,1), seasonal_order=(0,0,0,0)): self.data = data self.order = order self.seasonal_order = seasonal_order self.model = None self.results = None
 
-        def fit(self):
-            """Fit SARIMA model with automatic differencing"""
-            self.model = sm.tsa.SARIMAX(self.data,
-                                        order=self.order,
-                                        seasonal_order=self.seasonal_order)
-            self.results = self.model.fit()
-            return self.results
+def fit(self): """Fit SARIMA model with automatic differencing""" self.model = sm.tsa.SARIMAX(self.data, order=self.order, seasonal_order=self.seasonal_order) self.results = self.model.fit() return self.results
 
-        def diagnostic_plots(self):
-            """Generate diagnostic plots for model evaluation"""
-            self.results.plot_diagnostics(figsize=(15, 12))
-            plt.tight_layout()
-            plt.show()
+def diagnostic_plots(self): """Generate diagnostic plots for model evaluation""" self.results.plot_diagnostics(figsize=(15, 12)) plt.tight_layout() plt.show()
 
 ## Vector Autoregression (VAR) Models
 
 VAR models represent a significant advancement in economic analysis by treating multiple time series as mutually influential. This approach recognizes that economic variables often affect each other with various time lags. The implementation enables analysis of these complex interactions, including tests for Granger causality to determine whether one variable helps predict another. VAR models are particularly valuable for analyzing policy impacts and economic relationships.
 
-    class EconometricVAR:
-        def __init__(self, data, maxlags=None):
-            self.data = data
-            self.maxlags = maxlags
-            self.model = None
-            self.results = None
+class EconometricVAR: def __init__(self, data, maxlags=None): self.data = data self.maxlags = maxlags self.model = None self.results = None
 
-        def select_order(self):
-            """Select optimal lag order using information criteria"""
-            model = sm.tsa.VAR(self.data)
-            return model.select_order(maxlags=self.maxlags)
+def select_order(self): """Select optimal lag order using information criteria""" model = sm.tsa.VAR(self.data) return model.select_order(maxlags=self.maxlags)
 
-        def fit(self, lags=None):
-            """Fit VAR model"""
-            if lags is None:
-                lags = self.select_order().aic
-            self.model = sm.tsa.VAR(self.data)
-            self.results = self.model.fit(lags)
-            return self.results
+def fit(self, lags=None): """Fit VAR model""" if lags is None: lags = self.select_order().aic self.model = sm.tsa.VAR(self.data) self.results = self.model.fit(lags) return self.results
 
 ## GARCH Models for Volatility Analysis
 
 Generalized Autoregressive Conditional Heteroskedasticity (GARCH) models address the tendency of financial data to show periods of high and low volatility clustering together. These models extend traditional time series analysis by explicitly modeling the variance of the error term, making them particularly valuable for analyzing financial markets and risk assessment. The implementation allows for both short-term volatility shocks and long-term volatility persistence, providing crucial insights for risk management and portfolio optimization.
 
-    from arch import arch_model
+from arch import arch_model
 
-    class VolatilityAnalysis:
-        def __init__(self, returns):
-            self.returns = returns
-            self.model = None
-            self.results = None
+class VolatilityAnalysis: def __init__(self, returns): self.returns = returns self.model = None self.results = None
 
-        def fit_garch(self, p=1, q=1):
-            """Fit GARCH(p,q) model"""
-            self.model = arch_model(self.returns, vol='Garch', p=p, q=q)
-            self.results = self.model.fit()
-            return self.results
+def fit_garch(self, p=1, q=1): """Fit GARCH(p,q) model""" self.model = arch_model(self.returns, vol='Garch', p=p, q=q) self.results = self.model.fit() return self.results
 
-        def forecast_volatility(self, horizon=10):
-            """Forecast volatility"""
-            forecast = self.results.forecast(horizon=horizon)
-            return forecast.variance.values[-1]
+def forecast_volatility(self, horizon=10): """Forecast volatility""" forecast = self.results.forecast(horizon=horizon) return forecast.variance.values[-1]
 
 ## Error Correction Models (ECM)
 
 Error Correction Models bridge the gap between short-run dynamics and long-run equilibrium relationships in economic data. When variables are cointegrated, ECMs capture how they adjust back to their long-run relationship after short-term deviations. The implementation combines both the long-run cointegrating relationship and short-run adjustment mechanisms, making these models essential for understanding economic equilibrium processes and policy impacts.
 
-    class ErrorCorrectionModel:
-        def __init__(self, y, x):
-            self.y = y
-            self.x = x
-            self.results = None
+class ErrorCorrectionModel: def __init__(self, y, x): self.y = y self.x = x self.results = None
 
-        def fit(self):
-            """Fit Error Correction Model"""
-            coint_reg = sm.OLS(self.y, sm.add_constant(self.x)).fit()
-            residuals = coint_reg.resid
-            dy = np.diff(self.y)
-            dx = np.diff(self.x)
-            res_lag = residuals[:-1]
-            X = sm.add_constant(np.column_stack((dx, res_lag)))
-            ecm = sm.OLS(dy, X).fit()
-            self.results = ecm
-            return self.results
+def fit(self): """Fit Error Correction Model""" coint_reg = sm.OLS(self.y, sm.add_constant(self.x)).fit() residuals = coint_reg.resid dy = np.diff(self.y) dx = np.diff(self.x) res_lag = residuals[:-1] X = sm.add_constant(np.column_stack((dx, res_lag))) ecm = sm.OLS(dy, X).fit() self.results = ecm return self.results
 
 Econometric time series analysis provides a quantitative approach to understanding economic and financial data. This field combines rigorous statistical methods with economic theory to extract meaningful insights from temporal data while accounting for the unique characteristics and challenges present in economic systems.
 
@@ -257,25 +143,17 @@ ARCH errors refer to the conditional variance of residuals that follow the ARCH 
 We use the `arch` library in Python to build an ARCH model. Let's create some synthetic data:
 
     # Set random seed for reproducibility
-    np.random.seed(42)
+np.random.seed(42)
 
     # Simulate returns with volatility clustering
-    n = 1000
-    omega = 0.1
-    alpha = 0.8
+n = 1000 omega = 0.1 alpha = 0.8
 
-    errors = np.random.normal(size=n)
-    volatility = np.zeros(n)
-    returns = np.zeros(n)
+errors = np.random.normal(size=n) volatility = np.zeros(n) returns = np.zeros(n)
 
-    for t in range(1, n):
-        volatility[t] = np.sqrt(omega + alpha * errors[t-1]**2)
-        returns[t] = volatility[t] * np.random.normal()
+for t in range(1, n): volatility[t] = np.sqrt(omega + alpha * errors[t-1]**2) returns[t] = volatility[t] * np.random.normal()
 
     # Create a DataFrame
-    data = pd.DataFrame({"returns": returns, "volatility": volatility})
-    data.plot(subplots=True, figsize=(10, 6), title="Simulated Returns and Volatility")
-    plt.show()
+data = pd.DataFrame({"returns": returns, "volatility": volatility}) data.plot(subplots=True, figsize=(10, 6), title="Simulated Returns and Volatility") plt.show()
 
 We simulate returns with volatility clustering and visualize the simulated returns and volatility.
 
@@ -283,11 +161,10 @@ We simulate returns with volatility clustering and visualize the simulated retur
 
 We use the `arch` library to fit an ARCH(1) model:
 
-    from arch import arch_model
+from arch import arch_model
 
     # Fit an ARCH(1) model
-    arch_model_fit = arch_model(data["returns"], vol="ARCH", p=1).fit()
-    print(arch_model_fit.summary())
+arch_model_fit = arch_model(data["returns"], vol="ARCH", p=1).fit() print(arch_model_fit.summary())
 
 The summary output shows the model's coefficients and diagnostics, helping us understand the volatility patterns in the data.
 
@@ -296,18 +173,10 @@ The summary output shows the model's coefficients and diagnostics, helping us un
 After fitting the model, we can forecast volatility:
 
     # Forecast volatility
-    forecast = arch_model_fit.forecast(horizon=10)
-    forecast_variance = forecast.variance.iloc[-1]
+forecast = arch_model_fit.forecast(horizon=10) forecast_variance = forecast.variance.iloc[-1]
 
     # Plot forecasted volatility
-    plt.figure(figsize=(10, 6))
-    plt.plot(forecast_variance, marker="o", label="Forecasted Variance")
-    plt.title("Forecasted Volatility")
-    plt.xlabel("Horizon")
-    plt.ylabel("Variance")
-    plt.legend()
-    plt.grid()
-    plt.show()
+plt.figure(figsize=(10, 6)) plt.plot(forecast_variance, marker="o", label="Forecasted Variance") plt.title("Forecasted Volatility") plt.xlabel("Horizon") plt.ylabel("Variance") plt.legend() plt.grid() plt.show()
 
 This graph shows the forecasted variance, illustrating the expected volatility over the next 10 periods.
 
@@ -365,25 +234,15 @@ The objective is to use the historic volatility of Tesla stock as a constraint f
 
 We use YFinance to download Tesla's historical stock data because it is straightforward and convenient. After importing the necessary libraries, we fetch the data and visualize the closing prices over the past 5 years:
 
-    np.random.seed(3363)
-    from scipy.stats import norm
-    import datetime
+np.random.seed(3363) from scipy.stats import norm import datetime
 
     # Import yfinance and download data
-    import yfinance as yf
+import yfinance as yf
 
-    ticker = "TSLA"  # Tesla Stock
-    df = yf.download(ticker, period='5y')
+ticker = "TSLA" # Tesla Stock df = yf.download(ticker, period='5y')
 
     # Plot using Matplotlib
-    plt.figure(figsize=(10, 6))
-    plt.plot(df.index, df['Close'], label="Close Price")
-    plt.title(f"Price of {ticker} from {df.index.min().date()} to {df.index.max().date()}")
-    plt.xlabel("Date")
-    plt.ylabel("Price (USD)")
-    plt.legend()
-    plt.grid(True)
-    plt.show()
+plt.figure(figsize=(10, 6)) plt.plot(df.index, df['Close'], label="Close Price") plt.title(f"Price of {ticker} from {df.index.min().date()} to {df.index.max().date()}") plt.xlabel("Date") plt.ylabel("Price (USD)") plt.legend() plt.grid(True) plt.show()
 
 The resulting plot shows a volatile time series, which makes it interesting to simulate future scenarios.
 
@@ -399,112 +258,72 @@ We assume the log of returns (percent changes) is normally distributed and that 
 
 ## Implementation in Python
 
-    def monte_carlo(pred_end_date, df, iterations=1000, plot=True):
-        """
-        Simulates future stock prices using the Monte Carlo method.
+def monte_carlo(pred_end_date, df, iterations=1000, plot=True): """ Simulates future stock prices using the Monte Carlo method.
 
-        Parameters:
-            pred_end_date (datetime): The end date for the forecast.
-            df (pd.DataFrame): Historical stock price data with a 'Close' column.
-            iterations (int): Number of Monte Carlo iterations. Default is 1000.
+Parameters: pred_end_date (datetime): The end date for the forecast. df (pd.DataFrame): Historical stock price data with a 'Close' column. iterations (int): Number of Monte Carlo iterations. Default is 1000.
 
-        Returns:
-            forecast_df (pd.DataFrame): Simulated future price paths.
-            final_prices (np.ndarray): Final prices from each iteration.
-        """
+Returns: forecast_df (pd.DataFrame): Simulated future price paths. final_prices (np.ndarray): Final prices from each iteration. """
 
         # Validate date range
-        if pred_end_date <= df.index.max():
-            raise ValueError("Prediction end date must be later than the last available date in the data.")
+if pred_end_date <= df.index.max(): raise ValueError("Prediction end date must be later than the last available date in the data.")
 
         # Generate business days between the last available date and the prediction end date
-        forecast_dates = pd.date_range(start=df.index.max() + pd.Timedelta(days=1), end=pred_end_date, freq='B')
+forecast_dates = pd.date_range(start=df.index.max() + pd.Timedelta(days=1), end=pred_end_date, freq='B')
 
         # Number of intervals
-        intervals = len(forecast_dates)
+intervals = len(forecast_dates)
 
         # Prepare log returns from data
-        log_returns = np.log(1 + df['Close'].pct_change().dropna())
+log_returns = np.log(1 + df['Close'].pct_change().dropna())
 
         # Setting up drift and random component in relation to asset data
-        u = log_returns.mean()
-        var = log_returns.var()
-        drift = u - (0.5 * var)
-        stdev = log_returns.std()
+u = log_returns.mean() var = log_returns.var() drift = u - (0.5 * var) stdev = log_returns.std()
 
-        daily_returns = np.exp(drift + stdev * norm.ppf(np.random.rand(intervals, iterations)))
+daily_returns = np.exp(drift + stdev * norm.ppf(np.random.rand(intervals, iterations)))
 
         # Initialize price list for simulation
-        price_list = np.zeros((intervals, iterations))
-        price_list[0] = df['Close'].iloc[-1]
+price_list = np.zeros((intervals, iterations)) price_list[0] = df['Close'].iloc[-1]
 
         # Apply Monte Carlo simulation
-        for t in range(1, intervals):
-            price_list[t] = price_list[t - 1] * daily_returns[t]
+for t in range(1, intervals): price_list[t] = price_list[t - 1] * daily_returns[t]
 
         # Convert results into DataFrame with correct index
-        forecast_df = pd.DataFrame(price_list, index=forecast_dates)
+forecast_df = pd.DataFrame(price_list, index=forecast_dates)
 
         # Plot if needed
-        if plot:
-            forecast_df.plot(figsize=(10, 6), legend=False, title=f"{iterations} Simulated Future Paths")
-            plt.xlabel("Date")
-            plt.ylabel("Price")
-            plt.grid(True)
-            plt.show()
+if plot: forecast_df.plot(figsize=(10, 6), legend=False, title=f"{iterations} Simulated Future Paths") plt.xlabel("Date") plt.ylabel("Price") plt.grid(True) plt.show()
 
         # Extract the final simulated values
-        end_values_df = forecast_df.iloc[-1].values.flatten()
+end_values_df = forecast_df.iloc[-1].values.flatten()
 
-        return forecast_df, end_values_df
+return forecast_df, end_values_df
 
 # Visualizing Results
 
 The simulated future paths are visualized as follows:
 
-    ticker = "TSLA"
-    import yfinance as yf
-    df = yf.download(ticker, period='5y')
+ticker = "TSLA" import yfinance as yf df = yf.download(ticker, period='5y')
 
-    pred_end_date = datetime.datetime(2025, 7, 1)
+pred_end_date = datetime.datetime(2025, 7, 1)
 
-    try:
-        forecast_df, end_values_df = monte_carlo(pred_end_date, df)
-    except ValueError as e:
-        print(e)
+try: forecast_df, end_values_df = monte_carlo(pred_end_date, df) except ValueError as e: print(e)
 
 # Histogram of Final Predicted Values
 
 To better understand the distribution of the predicted values, we visualize the final prices using a histogram:
 
-    def plot_norm_hist(s, vline=True, title=True):
-        """
-        Plots a histogram of the given data with a normal distribution overlay.
-        """
-        mu, sigma = np.mean(s), np.std(s)  # Mean and standard deviation
+def plot_norm_hist(s, vline=True, title=True): """ Plots a histogram of the given data with a normal distribution overlay. """ mu, sigma = np.mean(s), np.std(s) # Mean and standard deviation
 
         # Plot histogram and normal distribution
-        count, bins, ignored = plt.hist(s, bins=30, density=True, alpha=0.75, color='blue')
-        plt.plot(bins, 1/(sigma * np.sqrt(2 * np.pi)) *
-                 np.exp(-(bins - mu)**2 / (2 * sigma**2)),
-                 linewidth=2, color='red')
+count, bins, ignored = plt.hist(s, bins=30, density=True, alpha=0.75, color='blue') plt.plot(bins, 1/(sigma * np.sqrt(2 * np.pi)) * np.exp(-(bins - mu)**2 / (2 * sigma**2)), linewidth=2, color='red')
 
         # Add vertical lines for ±0.67 sigma
-        if vline:
-            lline = -0.67 * sigma + mu
-            uline = 0.67 * sigma + mu
-            plt.axvline(lline, color='green', linestyle='--', label=f"Lower Bound ({lline:.2f})")
-            plt.axvline(uline, color='green', linestyle='--', label=f"Upper Bound ({uline:.2f})")
+if vline: lline = -0.67 * sigma + mu uline = 0.67 * sigma + mu plt.axvline(lline, color='green', linestyle='--', label=f"Lower Bound ({lline:.2f})") plt.axvline(uline, color='green', linestyle='--', label=f"Upper Bound ({uline:.2f})")
 
         # Add title and labels
-        if title:
-            plt.title(f"Final Price Distribution\nMean: ${mu:.2f}, Std Dev: ${sigma:.2f}")
-        plt.xlabel("Price")
-        plt.ylabel("Frequency")
-        plt.legend()
-        plt.grid(True)
+if title: plt.title(f"Final Price Distribution\nMean: ${mu:.2f}, Std Dev: ${sigma:.2f}") plt.xlabel("Price") plt.ylabel("Frequency") plt.legend() plt.grid(True)
 
-        plt.show()
+plt.show()
 
 The analysis suggests that the future price of Tesla stock will likely be higher than its current price, with 62.8% of the simulations predicting an increase. The predicted mean value for Tesla stock is approximately \$576.33 for July 1, 2025.
 
@@ -536,27 +355,18 @@ When the stock's price touches the lower Bollinger Band, it may signal a potenti
 
 Let's implement Bollinger Bands in Python using Natural Gas prices as an example. We use Pandas for data manipulation and Matplotlib for visualization.
 
-    df = pd.read_csv('data.csv')
+df = pd.read_csv('data.csv')
 
     # Calculate Bollinger Bands
-    def bollinger_bands(df, drop: bool = True, target_col: str = 'adjClose') -> pd.DataFrame:
-        """
-        Calculates Bollinger Bands and returns an updated DataFrame.
+def bollinger_bands(df, drop: bool = True, target_col: str = 'adjClose') -> pd.DataFrame: """ Calculates Bollinger Bands and returns an updated DataFrame.
 
-        :param df: DataFrame containing stock prices
-        :param target_col: Column to be used for calculations (default: 'adjClose')
-        :param drop: Drop rows with NaN values (default: True)
+:param df: DataFrame containing stock prices :param target_col: Column to be used for calculations (default: 'adjClose') :param drop: Drop rows with NaN values (default: True)
 
-        :return: DataFrame with additional columns for Bollinger Bands
-        """
-        if drop:
-            df.dropna(inplace=True)
+:return: DataFrame with additional columns for Bollinger Bands """ if drop: df.dropna(inplace=True)
 
-        df['20 Day MA'] = df[target_col].rolling(20).mean()
-        df['20 Day MA_lower bound'] = df['20 Day MA'] - df[target_col].rolling(20).std() * 2
-        df['20 Day MA_upper bound'] = df['20 Day MA'] + df[target_col].rolling(20).std() * 2
+df['20 Day MA'] = df[target_col].rolling(20).mean() df['20 Day MA_lower bound'] = df['20 Day MA'] - df[target_col].rolling(20).std() * 2 df['20 Day MA_upper bound'] = df['20 Day MA'] + df[target_col].rolling(20).std() * 2
 
-        return df
+return df
 
 This function calculates the 20-day moving average and the upper and lower Bollinger Bands, using two standard deviations from the moving average.
 
@@ -564,28 +374,17 @@ This function calculates the 20-day moving average and the upper and lower Bolli
 
 We visualize the Bollinger Bands along with the closing prices using Matplotlib:
 
-    def bb_plot(df: pd.DataFrame, target_col: str = 'adjClose'):
-        """
-        Plots time series data with Bollinger Bands.
+def bb_plot(df: pd.DataFrame, target_col: str = 'adjClose'): """ Plots time series data with Bollinger Bands.
 
-        :param df: DataFrame containing stock prices and Bollinger Bands
-        :param target_col: Column to be used for calculations (default: 'adjClose')
+:param df: DataFrame containing stock prices and Bollinger Bands :param target_col: Column to be used for calculations (default: 'adjClose')
 
-        :return: Matplotlib plot showing Bollinger Bands
-        """
+:return: Matplotlib plot showing Bollinger Bands """
 
-        x = df.index
-        y = df[['adjClose', '20 Day MA', '20 Day MA_lower bound', '20 Day MA_upper bound']]
+x = df.index y = df[['adjClose', '20 Day MA', '20 Day MA_lower bound', '20 Day MA_upper bound']]
 
-        plt.fill_between(x, df['20 Day MA_lower bound'], df['20 Day MA_upper bound'], alpha=0.5)
-        plt.plot(x, y)
-        plt.title(f"Bollinger Bands for {target_col}")
-        plt.xlabel('Date (Year/Month)')
-        plt.ylabel('Price (USD)')
-        plt.legend(y)
-        plt.show()
+plt.fill_between(x, df['20 Day MA_lower bound'], df['20 Day MA_upper bound'], alpha=0.5) plt.plot(x, y) plt.title(f"Bollinger Bands for {target_col}") plt.xlabel('Date (Year/Month)') plt.ylabel('Price (USD)') plt.legend(y) plt.show()
 
-        return plt
+return plt
 
 ![image](img/bollingerbands.png)
 
