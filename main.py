@@ -4,7 +4,6 @@ Volatility Models (ARCH/GARCH)
 Volatility forecasting using ARCH and GARCH models for financial time series.
 """
 
-import sys
 from pathlib import Path
 
 import logging
@@ -26,7 +25,6 @@ from src import (
     ensure_output_dir,
     get_output_dir,
     save_plot,
-    create_forecast_plot,
 )
 from src.evaluator import Evaluator
 
@@ -137,7 +135,7 @@ def main(plot: bool = False):
         if valid_idx.sum() > 0:
             mae = mean_absolute_error(aligned_test[valid_idx], forecast_series[valid_idx])
             rmse = np.sqrt(mean_squared_error(aligned_test[valid_idx], forecast_series[valid_idx]))
-            logger.info(f"\nEvaluation Metrics:")
+            logger.info("\nEvaluation Metrics:")
             logger.info(f"  MAE: {mae:.4f}")
             logger.info(f"  RMSE: {rmse:.4f}")
     
