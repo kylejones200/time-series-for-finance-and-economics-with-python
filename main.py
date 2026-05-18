@@ -7,19 +7,13 @@ Volatility forecasting using ARCH and GARCH models for financial time series.
 import logging
 from pathlib import Path
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
-# Add src to path
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from arch import arch_model
 from sklearn.metrics import mean_absolute_error, mean_squared_error
+from src.evaluator import Evaluator
 
-# Import consolidated utilities (signalplot already applied in src/__init__.py)
 from src import (
     ensure_output_dir,
     get_output_dir,
@@ -27,13 +21,18 @@ from src import (
     load_time_series,
     save_plot,
 )
-from src.evaluator import Evaluator
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+# Add src to path
+
+
+# Import consolidated utilities (signalplot already applied in src/__init__.py)
 
 
 def create_volatility_model(data: pd.Series, config: dict):
     """Create ARCH/GARCH volatility model."""
     model_type = config["model"]["type"]
-
     model_map = {
         "ARCH": lambda: arch_model(
             data,
@@ -57,7 +56,6 @@ def create_volatility_model(data: pd.Series, config: dict):
             dist=config["model"]["distribution"],
         ),
     }
-
     return model_map.get(model_type, model_map["GARCH"])()
 
 
@@ -67,30 +65,24 @@ def fit_and_forecast(model, config: dict):
         update_freq=config["model"].get("update_freq", 1),
         disp=config["model"].get("disp", "off"),
     )
-
     forecast = fitted_model.forecast(horizon=config["model"]["forecast_horizon"])
     forecast_variance = forecast.variance.iloc[-1].values
     forecast_volatility = np.sqrt(forecast_variance)
-
     return fitted_model, forecast_variance, forecast_volatility
 
 
 def main(plot: bool = False):
     """Main execution function."""
     script_dir = Path(__file__).parent
-
     # Load configuration using consolidated loader
     config = load_config()
-
     # Load data using consolidated loader
     series = load_time_series(
         config["data"]["input_file"],
-        date_column=config["data"].get("date_col", "date"),
-        value_column=config["data"].get("value_col", "value"),
+        date_col=config["data"].get("date_col", "date"),
+        value_col=config["data"].get("value_col", "value"),
     )
-
     logger.info(f"Loaded {len(series)} data points")
-
     # Calculate returns if configured (typical for volatility modeling)
     if config.get("data", {}).get("use_returns", True):
         returns = series.pct_change().dropna()
@@ -103,19 +95,13 @@ def main(plot: bool = False):
     evaluator = Evaluator(test_size=config.get("evaluation", {}).get("test_size", 0.2))
     train, test = evaluator.split(data)
     logger.info(f"\nTrain: {len(train)} points, Test: {len(test)} points")
-
     # Create and fit volatility model
     model_type = config["model"]["type"]
     logger.info(f"\nFitting {model_type} volatility model...")
     model = create_volatility_model(train, config)
-
-    fitted_model, forecast_variance, forecast_volatility = fit_and_forecast(
-        model, config
-    )
-
+    fitted_model, forecast_variance, forecast_volatility = fit_and_forecast(model, config)
     logger.info(f"\n{model_type} Model Summary:")
     logger.info(fitted_model.summary())
-
     # Create forecast index
     forecast_horizon = config["model"]["forecast_horizon"]
     forecast_index = pd.date_range(
@@ -123,9 +109,7 @@ def main(plot: bool = False):
         periods=forecast_horizon,
         freq=pd.infer_freq(train.index) or "D",
     )
-
     forecast_series = pd.Series(forecast_volatility, index=forecast_index)
-
     # Evaluate if we have test data
     if len(test) >= forecast_horizon:
         test_volatility = test.iloc[
@@ -133,14 +117,9 @@ def main(plot: bool = False):
         ].abs()  # Use absolute returns as proxy for volatility
         aligned_test = test_volatility.reindex(forecast_index, method="nearest")
         valid_idx = ~aligned_test.isna() & ~forecast_series.isna()
-
         if valid_idx.sum() > 0:
-            mae = mean_absolute_error(
-                aligned_test[valid_idx], forecast_series[valid_idx]
-            )
-            rmse = np.sqrt(
-                mean_squared_error(aligned_test[valid_idx], forecast_series[valid_idx])
-            )
+            mae = mean_absolute_error(aligned_test[valid_idx], forecast_series[valid_idx])
+            rmse = np.sqrt(mean_squared_error(aligned_test[valid_idx], forecast_series[valid_idx]))
             logger.info("\nEvaluation Metrics:")
             logger.info(f"  MAE: {mae:.4f}")
             logger.info(f"  RMSE: {rmse:.4f}")
@@ -149,7 +128,6 @@ def main(plot: bool = False):
     logger.info("\nCreating visualization...")
     if plot:
         fig, axes = plt.subplots(2, 1, figsize=(15, 10), sharex=True)
-
         # Plot returns/values
         axes[0].plot(
             train.index[-100:] if len(train) > 100 else train.index,
@@ -161,24 +139,17 @@ def main(plot: bool = False):
         )
         if len(test) > 0:
             axes[0].plot(
-                test.index[:forecast_horizon]
-                if len(test) >= forecast_horizon
-                else test.index,
-                test.values[:forecast_horizon]
-                if len(test) >= forecast_horizon
-                else test.values,
+                test.index[:forecast_horizon] if len(test) >= forecast_horizon else test.index,
+                test.values[:forecast_horizon] if len(test) >= forecast_horizon else test.values,
                 "g-",
                 linewidth=config.get("plotting", {}).get("linewidth", 1.5),
                 alpha=config.get("plotting", {}).get("alpha", 0.8),
                 label="Actual (Test)",
             )
         axes[0].set_title(f"{model_type} Model - Returns/Values")
-        axes[0].set_ylabel(
-            "Return" if config.get("data", {}).get("use_returns", True) else "Value"
-        )
+        axes[0].set_ylabel("Return" if config.get("data", {}).get("use_returns", True) else "Value")
         axes[0].legend(loc="best")
         axes[0].grid(True, alpha=0.3)
-
         # Plot volatility forecast
         axes[1].plot(
             forecast_index,
@@ -200,16 +171,12 @@ def main(plot: bool = False):
         axes[1].set_xlabel("Date")
         axes[1].legend(loc="best")
         axes[1].grid(True, alpha=0.3)
-
         plt.tight_layout()
-        output_dir = ensure_output_dir(get_output_dir(config, script_dir))
-        save_plot(fig, output_dir / f"{model_type.lower()}_volatility.png", dpi=300)
-        logger.info(
-            f"Plot saved to: {output_dir / f'{model_type.lower()}_volatility.png'}"
-        )
-
+        output_dir = ensure_output_dir(config)
+        fig.savefig(output_dir / f"{model_type.lower()}_volatility.png", dpi=300, bbox_inches="tight")
+        plt.close(fig)
+        logger.info(f"Plot saved to: {output_dir / f'{model_type.lower()}_volatility.png'}")
         logger.info(f"\n {model_type} volatility analysis complete")
-
         if config.get("plotting", {}).get("show_plot", True):
             plt.show()
         else:
