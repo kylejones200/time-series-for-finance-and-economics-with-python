@@ -71,11 +71,13 @@ def fit_and_forecast(model, config: dict):
     return fitted_model, forecast_variance, forecast_volatility
 
 
-def main(plot: bool = False):
-    """Main execution function."""
-    script_dir = Path(__file__).parent
+
+def _load_configuration_using_consolidated():
     # Load configuration using consolidated loader
     config = load_config()
+
+
+def _load_data_using_consolidated():
     # Load data using consolidated loader
     series = load_time_series(
         config["data"]["input_file"],
@@ -83,6 +85,9 @@ def main(plot: bool = False):
         value_col=config["data"].get("value_col", "value"),
     )
     logger.info(f"Loaded {len(series)} data points")
+
+
+def _calculate_returns_if_configured():
     # Calculate returns if configured (typical for volatility modeling)
     if config.get("data", {}).get("use_returns", True):
         returns = series.pct_change().dropna()
@@ -91,10 +96,16 @@ def main(plot: bool = False):
     else:
         data = series
 
+
+
+def _split_traintest_using_consolidated():
     # Split train/test using consolidated evaluator
     evaluator = Evaluator(test_size=config.get("evaluation", {}).get("test_size", 0.2))
     train, test = evaluator.split(data)
     logger.info(f"\nTrain: {len(train)} points, Test: {len(test)} points")
+
+
+def _create_and_fit_volatility():
     # Create and fit volatility model
     model_type = config["model"]["type"]
     logger.info(f"\nFitting {model_type} volatility model...")
@@ -102,6 +113,9 @@ def main(plot: bool = False):
     fitted_model, forecast_variance, forecast_volatility = fit_and_forecast(model, config)
     logger.info(f"\n{model_type} Model Summary:")
     logger.info(fitted_model.summary())
+
+
+def _create_forecast_index():
     # Create forecast index
     forecast_horizon = config["model"]["forecast_horizon"]
     forecast_index = pd.date_range(
@@ -124,63 +138,86 @@ def main(plot: bool = False):
             logger.info(f"  MAE: {mae:.4f}")
             logger.info(f"  RMSE: {rmse:.4f}")
 
+
+
+def _create_visualization():
     # Create visualization
     logger.info("\nCreating visualization...")
     if plot:
         fig, axes = plt.subplots(2, 1, figsize=(15, 10), sharex=True)
-        # Plot returns/values
+
+
+def _plot_returnsvalues():
+    # Plot returns/values
+    axes[0].plot(
+        train.index[-100:] if len(train) > 100 else train.index,
+        train.values[-100:] if len(train) > 100 else train.values,
+        "k-",
+        linewidth=config.get("plotting", {}).get("linewidth", 1.5),
+        alpha=config.get("plotting", {}).get("alpha", 0.8),
+        label="Historical",
+    )
+    if len(test) > 0:
         axes[0].plot(
-            train.index[-100:] if len(train) > 100 else train.index,
-            train.values[-100:] if len(train) > 100 else train.values,
-            "k-",
+            test.index[:forecast_horizon] if len(test) >= forecast_horizon else test.index,
+            test.values[:forecast_horizon] if len(test) >= forecast_horizon else test.values,
+            "g-",
             linewidth=config.get("plotting", {}).get("linewidth", 1.5),
             alpha=config.get("plotting", {}).get("alpha", 0.8),
-            label="Historical",
+            label="Actual (Test)",
         )
-        if len(test) > 0:
-            axes[0].plot(
-                test.index[:forecast_horizon] if len(test) >= forecast_horizon else test.index,
-                test.values[:forecast_horizon] if len(test) >= forecast_horizon else test.values,
-                "g-",
-                linewidth=config.get("plotting", {}).get("linewidth", 1.5),
-                alpha=config.get("plotting", {}).get("alpha", 0.8),
-                label="Actual (Test)",
-            )
-        axes[0].set_title(f"{model_type} Model - Returns/Values")
-        axes[0].set_ylabel("Return" if config.get("data", {}).get("use_returns", True) else "Value")
-        axes[0].legend(loc="best")
-        axes[0].grid(True, alpha=0.3)
-        # Plot volatility forecast
-        axes[1].plot(
-            forecast_index,
-            forecast_volatility,
-            "r-",
-            linewidth=config.get("plotting", {}).get("linewidth", 1.5),
-            label=f"{model_type} Volatility Forecast",
-        )
-        axes[1].fill_between(
-            forecast_index,
-            forecast_volatility * 0.8,  # Lower bound approximation
-            forecast_volatility * 1.2,  # Upper bound approximation
-            alpha=0.2,
-            color="r",
-            label="Uncertainty",
-        )
-        axes[1].set_title(f"{model_type} Volatility Forecast")
-        axes[1].set_ylabel("Volatility")
-        axes[1].set_xlabel("Date")
-        axes[1].legend(loc="best")
-        axes[1].grid(True, alpha=0.3)
-        plt.tight_layout()
-        output_dir = ensure_output_dir(config)
-        fig.savefig(output_dir / f"{model_type.lower()}_volatility.png", dpi=300, bbox_inches="tight")
+    axes[0].set_title(f"{model_type} Model - Returns/Values")
+    axes[0].set_ylabel("Return" if config.get("data", {}).get("use_returns", True) else "Value")
+    axes[0].legend(loc="best")
+    axes[0].grid(True, alpha=0.3)
+
+
+def _plot_volatility_forecast():
+    # Plot volatility forecast
+    axes[1].plot(
+        forecast_index,
+        forecast_volatility,
+        "r-",
+        linewidth=config.get("plotting", {}).get("linewidth", 1.5),
+        label=f"{model_type} Volatility Forecast",
+    )
+    axes[1].fill_between(
+        forecast_index,
+        forecast_volatility * 0.8,  # Lower bound approximation
+        forecast_volatility * 1.2,  # Upper bound approximation
+        alpha=0.2,
+        color="r",
+        label="Uncertainty",
+    )
+    axes[1].set_title(f"{model_type} Volatility Forecast")
+    axes[1].set_ylabel("Volatility")
+    axes[1].set_xlabel("Date")
+    axes[1].legend(loc="best")
+    axes[1].grid(True, alpha=0.3)
+    plt.tight_layout()
+    output_dir = ensure_output_dir(config)
+    fig.savefig(output_dir / f"{model_type.lower()}_volatility.png", dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    logger.info(f"Plot saved to: {output_dir / f'{model_type.lower()}_volatility.png'}")
+    logger.info(f"\n {model_type} volatility analysis complete")
+    if config.get("plotting", {}).get("show_plot", True):
+        plt.show()
+    else:
         plt.close(fig)
-        logger.info(f"Plot saved to: {output_dir / f'{model_type.lower()}_volatility.png'}")
-        logger.info(f"\n {model_type} volatility analysis complete")
-        if config.get("plotting", {}).get("show_plot", True):
-            plt.show()
-        else:
-            plt.close(fig)
+
+
+def main(plot: bool = False):
+    """Main execution function."""
+    script_dir = Path(__file__).parent
+    _load_configuration_using_consolidated()
+    _load_data_using_consolidated()
+    _calculate_returns_if_configured()
+    _split_traintest_using_consolidated()
+    _create_and_fit_volatility()
+    _create_forecast_index()
+    _create_visualization()
+    _plot_returnsvalues()
+    _plot_volatility_forecast()
 
 
 if __name__ == "__main__":
